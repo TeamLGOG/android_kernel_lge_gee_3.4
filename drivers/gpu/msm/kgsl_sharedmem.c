@@ -387,9 +387,9 @@ static int kgsl_page_alloc_map_kernel(struct kgsl_memdesc *memdesc)
 			sglen--;
 
 		/* create a list of pages to call vmap */
-		pages = vmalloc(sglen * sizeof(struct page *));
+		pages = kmalloc(sglen * sizeof(struct page *), GFP_KERNEL);
 		if (!pages) {
-			KGSL_CORE_ERR("vmalloc(%d) failed\n",
+			KGSL_CORE_ERR("kmalloc(%d) failed\n",
 				sglen * sizeof(struct page *));
 			return -ENOMEM;
 		}
@@ -399,7 +399,7 @@ static int kgsl_page_alloc_map_kernel(struct kgsl_memdesc *memdesc)
 					VM_IOREMAP, page_prot);
 		KGSL_STATS_ADD(memdesc->size, kgsl_driver.stats.vmalloc,
 				kgsl_driver.stats.vmalloc_max);
-		vfree(pages);
+		kfree(pages);
 	}
 	if (!memdesc->hostptr)
 		return -ENOMEM;
@@ -510,22 +510,6 @@ _kgsl_sharedmem_page_alloc(struct kgsl_memdesc *memdesc,
 	struct page **pages = NULL;
 	pgprot_t page_prot = pgprot_writecombine(PAGE_KERNEL);
 	void *ptr;
-	struct sysinfo si;
-
-	/*
-	 * Get the current memory information to be used in deciding if we
-	 * should go ahead with this allocation
-	 */
-
-	si_meminfo(&si);
-
-	/*
-	 * Don't let the user allocate more free memory then is available on the
-	 * system
-	 */
-
-	if (size >= (si.freeram << PAGE_SHIFT))
-		return -ENOMEM;
 
 	/*
 	 * Add guard page to the end of the allocation when the
@@ -697,8 +681,7 @@ kgsl_sharedmem_page_alloc_user(struct kgsl_memdesc *memdesc,
 {
 	unsigned int protflags;
 
-	if (size == 0)
-		return -EINVAL;
+	BUG_ON(size == 0);
 
 	protflags = GSL_PT_PAGE_RV;
 	if (!(flags & KGSL_MEMFLAGS_GPUREADONLY))

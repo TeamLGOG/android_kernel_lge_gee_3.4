@@ -18,7 +18,6 @@
 #include <linux/slab.h>
 #include <linux/sched.h>
 #include <linux/iommu.h>
-#include <mach/iommu.h>
 #include <mach/socinfo.h>
 
 #include "kgsl.h"
@@ -320,22 +319,20 @@ unsigned int kgsl_mmu_get_ptsize(void)
 	if (KGSL_MMU_TYPE_GPU == kgsl_mmu_type)
 		return CONFIG_MSM_KGSL_PAGE_TABLE_SIZE;
 	else if (KGSL_MMU_TYPE_IOMMU == kgsl_mmu_type)
-		return SZ_2G - KGSL_PAGETABLE_BASE;
+		return SZ_2G;
 	else
 		return 0;
 }
 
 int
-kgsl_mmu_get_ptname_from_ptbase(struct kgsl_mmu *mmu, unsigned int pt_base)
+kgsl_mmu_get_ptname_from_ptbase(unsigned int pt_base)
 {
 	struct kgsl_pagetable *pt;
 	int ptid = -1;
 
-	if (!mmu->mmu_ops || !mmu->mmu_ops->mmu_pt_equal)
-		return KGSL_MMU_GLOBAL_PT;
 	spin_lock(&kgsl_driver.ptlock);
 	list_for_each_entry(pt, &kgsl_driver.pagetable_list, list) {
-		if (mmu->mmu_ops->mmu_pt_equal(mmu, pt, pt_base)) {
+		if (pt->pt_ops->mmu_pt_equal(pt, pt_base)) {
 			ptid = (int) pt->name;
 			break;
 		}
@@ -531,10 +528,6 @@ struct kgsl_pagetable *kgsl_mmu_getpagetable(unsigned long name)
 #ifndef CONFIG_KGSL_PER_PROCESS_PAGE_TABLE
 	name = KGSL_MMU_GLOBAL_PT;
 #endif
-	/* We presently do not support per-process for IOMMU-v2 */
-	if (!msm_soc_version_supports_iommu_v1())
-		name = KGSL_MMU_GLOBAL_PT;
-
 	pt = kgsl_get_pagetable(name);
 
 	if (pt == NULL)
